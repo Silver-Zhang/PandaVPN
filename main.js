@@ -12,6 +12,7 @@ const {
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
+const net = require('net');
 const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
@@ -24,6 +25,19 @@ const CORE_CONTROL_PORT = 4790;
 const HTTP_PROXY_PORT = 4780;
 const SOCKS_PROXY_PORT = 4781;
 const LOCAL_API_KEY = 'RocketMaker';
+const MODE_ALIASES = {
+  rule: 'Rule',
+  smart: 'Rule',
+  intelligent: 'Rule',
+  auto: 'Rule',
+  global: 'Global',
+  direct: 'Direct'
+};
+const MODE_LABELS = {
+  Rule: '智能代理',
+  Global: '全局代理',
+  Direct: '直连模式'
+};
 
 let mainWindow = null;
 let tray = null;
@@ -174,6 +188,16 @@ function parseScalarConfigValue(text, key, fallback) {
   return match ? match[1].trim().replace(/^["']|["']$/g, '') : fallback;
 }
 
+function writeScalarConfigValue(text, key, value) {
+  const line = `${key}: ${value}`;
+  const pattern = new RegExp(`^${key}:.*$`, 'm');
+  return pattern.test(text) ? text.replace(pattern, line) : `${line}\n${text}`;
+}
+
+function ensureTrailingNewline(text) {
+  return text.endsWith('\n') ? text : `${text}\n`;
+}
+
 function readActiveConfigText() {
   try {
     return fs.readFileSync(runtime.activeConfigFile, 'utf8');
@@ -187,8 +211,67 @@ function readConfigSummary() {
   return {
     port: Number(parseScalarConfigValue(text, 'port', HTTP_PROXY_PORT)) || HTTP_PROXY_PORT,
     'socks-port': Number(parseScalarConfigValue(text, 'socks-port', SOCKS_PROXY_PORT)) || SOCKS_PROXY_PORT,
-    mode: parseScalarConfigValue(text, 'mode', 'Rule')
+    mode: normalizeStoredMode(parseScalarConfigValue(text, 'mode', 'Rule'))
   };
+}
+
+function normalizeStoredMode(value) {
+  const text = String(value || 'Rule').trim();
+  const normalized = MODE_ALIASES[text.toLowerCase()];
+  if (normalized) {
+    return normalized;
+  }
+  return ['Rule', 'Global', 'Direct'].includes(text) ? text : 'Rule';
+}
+
+function normalizeProxyMode(value) {
+  const normalized = MODE_ALIASES[String(value || '').trim().toLowerCase()];
+  if (!normalized) {
+    throw new Error('请选择智能代理、全局代理或直连模式。');
+  }
+  return normalized;
+}
+
+function coreIsRunning() {
+  return Boolean(coreProcess && !coreProcess.killed);
+}
+
+function readTail(file, maxBytes = 12000) {
+  try {
+    if (!fs.existsSync(file)) {
+      return '';
+    }
+    const stat = fs.statSync(file);
+    const start = Math.max(0, stat.size - maxBytes);
+    const fd = fs.openSync(file, 'r');
+    const buffer = Buffer.alloc(stat.size - start);
+    fs.readSync(fd, buffer, 0, buffer.length, start);
+    fs.closeSync(fd);
+    return buffer.toString('utf8');
+  } catch (error) {
+    return '';
+  }
+}
+
+function redactUrl(value) {
+  try {
+    const parsed = new URL(String(value || ''));
+    if (parsed.username) {
+      parsed.username = '***';
+    }
+    if (parsed.password) {
+      parsed.password = '***';
+    }
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (/token|key|pass|password|auth|secret/i.test(key)) {
+        parsed.searchParams.set(key, '***');
+      }
+    }
+    return parsed.toString();
+  } catch (error) {
+    const text = String(value || '');
+    return text.length > 72 ? `${text.slice(0, 28)}...${text.slice(-18)}` : text;
+  }
 }
 
 function extractProxyNames(configText) {
@@ -433,6 +516,75 @@ function runCommand(command, args) {
   });
 }
 
+function runCapture(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd || __dirname,
+      env: {
+        ...process.env,
+        ...(options.env || {})
+      },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', chunk => {
+      stdout += chunk.toString('utf8');
+    });
+    child.stderr.on('data', chunk => {
+      stderr += chunk.toString('utf8');
+    });
+    child.on('error', reject);
+    child.on('exit', code => {
+      const result = { code, stdout, stderr };
+      if (code === 0) {
+        resolve(result);
+      } else {
+        const message = (stderr || stdout || `${command} exited with ${code}`).trim();
+        const error = new Error(message);
+        error.result = result;
+        reject(error);
+      }
+    });
+  });
+}
+
+function parseJsonOutput(text) {
+  const raw = String(text || '').trim();
+  if (!raw) {
+    return null;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(raw.slice(start, end + 1));
+      } catch (parseError) {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+async function runCli(args, options = {}) {
+  const nodePath = process.env.XIONGMAO_NODE || findInPath('node');
+  if (!nodePath) {
+    throw new Error('未找到 node，图形界面的账号登录/订阅导入需要可用的 Node.js。');
+  }
+  const result = await runCapture(nodePath, [path.join(__dirname, 'cli.js'), ...args, '--data-dir', runtime.userData], {
+    cwd: __dirname,
+    env: options.env || {}
+  });
+  return {
+    ...result,
+    json: parseJsonOutput(result.stdout)
+  };
+}
+
 async function setGnomeProxy(enabled) {
   if (!commandAvailable('gsettings')) {
     throw new Error('未找到 gsettings，当前桌面环境不支持自动设置系统代理。');
@@ -472,6 +624,37 @@ async function setSystemProxy(enabled) {
   await setGnomeProxy(enabled);
   settings.systemProxy = enabled;
   saveSettings();
+}
+
+async function setProxyMode(value) {
+  const mode = normalizeProxyMode(value);
+  const currentText = readActiveConfigText();
+  fs.writeFileSync(runtime.activeConfigFile, ensureTrailingNewline(writeScalarConfigValue(currentText, 'mode', mode)));
+
+  settings.mode = mode;
+  saveSettings();
+
+  let applied = false;
+  let applyError = null;
+  if (coreIsRunning()) {
+    try {
+      await requestCore('/configs', {
+        method: 'PATCH',
+        body: { mode }
+      });
+      applied = true;
+    } catch (error) {
+      applyError = error.message || String(error);
+    }
+  }
+
+  return {
+    mode,
+    label: MODE_LABELS[mode],
+    saved: true,
+    applied,
+    applyError
+  };
 }
 
 function autostartFilePath() {
@@ -848,6 +1031,361 @@ async function checkDelay(names) {
   );
 }
 
+async function readCoreConfigs() {
+  try {
+    return await requestCore('/configs');
+  } catch (error) {
+    return readConfigSummary();
+  }
+}
+
+async function readCoreProxies() {
+  try {
+    return await requestCore('/proxies');
+  } catch (error) {
+    return fallbackProxiesResponse();
+  }
+}
+
+function pickSelectorName(proxiesResponse) {
+  const proxies = (proxiesResponse && proxiesResponse.proxies) || {};
+  const saved = settings.currentSelector || 'Proxy';
+  if (proxies[saved] && Array.isArray(proxies[saved].all)) {
+    return saved;
+  }
+  if (proxies.Proxy && Array.isArray(proxies.Proxy.all)) {
+    return 'Proxy';
+  }
+  const found = Object.entries(proxies).find(([, value]) => Array.isArray(value.all) && value.all.length);
+  return found ? found[0] : 'Proxy';
+}
+
+function buildProxyRows(proxiesResponse, selectorName) {
+  const proxies = (proxiesResponse && proxiesResponse.proxies) || {};
+  const selector = proxies[selectorName] || {};
+  const current = selector.now || settings.currentProxy || '';
+  const names = Array.isArray(selector.all) ? selector.all : [];
+  return names.map(name => {
+    const detail = proxies[name] || {};
+    return {
+      name,
+      type: detail.type || '',
+      udp: Boolean(detail.udp),
+      selected: name === current,
+      history: Array.isArray(detail.history) ? detail.history.slice(-5) : []
+    };
+  });
+}
+
+function readCliSettings() {
+  return readJson(path.join(runtime.userData, 'settings.json'), {});
+}
+
+function buildAccountSummary() {
+  const cliSettings = readCliSettings();
+  const auth = cliSettings.auth || {};
+  const profile = cliSettings.profile || {};
+  return {
+    auth: auth.username || auth.apiBase || auth.loggedInAt
+      ? {
+          username: auth.username || '',
+          apiBase: auth.apiBase ? redactUrl(auth.apiBase) : '',
+          loggedInAt: auth.loggedInAt || '',
+          userInfoUpdatedAt: auth.userInfoUpdatedAt || '',
+          hasCookie: Boolean(auth.cookie),
+          user: auth.user || null
+        }
+      : null,
+    profile: profile.sourceType || profile.name || profile.subscriptionUrl
+      ? {
+          sourceType: profile.sourceType || '',
+          name: profile.name || '',
+          sourcePath: profile.sourcePath || '',
+          subscriptionUrl: profile.subscriptionUrlDisplay || (profile.subscriptionUrl ? redactUrl(profile.subscriptionUrl) : ''),
+          proxyCount: Number.isInteger(profile.proxyCount) ? profile.proxyCount : null,
+          convertedSubscription: Boolean(profile.convertedSubscription),
+          skippedProxyCount: Number.isInteger(profile.skippedProxyCount) ? profile.skippedProxyCount : null,
+          importedAt: profile.importedAt || ''
+        }
+      : null
+  };
+}
+
+async function buildDashboard() {
+  const configs = await readCoreConfigs();
+  const normalizedMode = normalizeStoredMode(configs.mode);
+  const proxiesResponse = await readCoreProxies();
+  const selectorName = pickSelectorName(proxiesResponse);
+  const selector = ((proxiesResponse && proxiesResponse.proxies) || {})[selectorName] || {};
+  const rows = buildProxyRows(proxiesResponse, selectorName);
+  const account = buildAccountSummary();
+
+  return {
+    appName: APP_NAME,
+    core: {
+      running: coreIsRunning(),
+      binary: corePath || findCoreBinary() || '',
+      control: `http://${CONTROL_HOST}:${PUBLIC_CONTROL_PORT}`,
+      coreControl: `http://${CONTROL_HOST}:${CORE_CONTROL_PORT}`,
+      logTail: readTail(path.join(runtime.logsDir, 'core.log'))
+    },
+    config: {
+      dataDir: runtime.userData,
+      activeConfigFile: runtime.activeConfigFile,
+      httpPort: Number(configs.port || HTTP_PROXY_PORT),
+      socksPort: Number(configs['socks-port'] || SOCKS_PROXY_PORT),
+      mode: normalizedMode,
+      modeLabel: MODE_LABELS[normalizedMode] || normalizedMode
+    },
+    settings: {
+      systemProxy: Boolean(settings.systemProxy),
+      startWithSystem: Boolean(settings.startWithSystem),
+      holdProxy: Boolean(settings.holdProxy),
+      currentProfile: settings.currentProfile || '',
+      currentSelector: selectorName,
+      currentProxy: selector.now || settings.currentProxy || ''
+    },
+    account,
+    subscriptions: readSubscriptions().subscriptions || [],
+    proxies: {
+      selector: selectorName,
+      current: selector.now || settings.currentProxy || '',
+      rows,
+      count: rows.length
+    }
+  };
+}
+
+async function switchProxyFromGui(payload = {}) {
+  const selector = payload.selector || settings.currentSelector || 'Proxy';
+  const proxy = payload.proxy || payload.name || '';
+  if (!proxy) {
+    throw new Error('请选择要切换的节点。');
+  }
+  if (!coreIsRunning()) {
+    await startCore();
+  }
+  await requestCore(`/proxies/${encodeURIComponent(selector)}`, {
+    method: 'PUT',
+    body: { name: proxy }
+  });
+  settings.currentSelector = selector;
+  settings.currentProxy = proxy;
+  saveSettings();
+  return buildDashboard();
+}
+
+async function checkDelaysFromGui(payload = {}) {
+  const names = Array.isArray(payload.names) ? payload.names : [];
+  const delays = await checkDelay(names);
+  return names.map((name, index) => ({
+    name,
+    delay: Number.isFinite(delays[index] && delays[index].delay) ? delays[index].delay : -1
+  }));
+}
+
+async function importSourceFromGui(source) {
+  const value = String(source || '').trim();
+  if (!value) {
+    throw new Error('请输入订阅地址，或选择要导入的配置文件。');
+  }
+  const result = await runCli(['import', value]);
+  settings.currentProfile = runtime.activeConfigFile;
+  saveSettings();
+  await restartCore();
+  return {
+    ok: true,
+    message: result.stdout.trim(),
+    dashboard: await buildDashboard()
+  };
+}
+
+async function importFileFromGui() {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '导入 Clash 配置或订阅文件',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Clash/subscription', extensions: ['yaml', 'yml', 'url', 'txt'] },
+      { name: 'All files', extensions: ['*'] }
+    ]
+  });
+  if (result.canceled || !result.filePaths.length) {
+    return { canceled: true };
+  }
+  return importSourceFromGui(result.filePaths[0]);
+}
+
+async function loginFromGui(payload = {}) {
+  const username = String(payload.username || '').trim();
+  const password = String(payload.password || '');
+  const base = String(payload.base || '').trim();
+  if (!username || !password) {
+    throw new Error('请输入账号和密码。');
+  }
+  const args = ['login', '--username', username];
+  if (base) {
+    args.push('--base', base);
+  }
+  const result = await runCli(args, {
+    env: {
+      XIONGMAO_PASSWORD: password
+    }
+  });
+  await restartCore();
+  return {
+    ok: true,
+    result: result.json,
+    dashboard: await buildDashboard()
+  };
+}
+
+async function refreshUserFromGui(payload = {}) {
+  const base = String(payload.base || '').trim();
+  const args = ['refresh-user'];
+  if (base) {
+    args.push('--base', base);
+  }
+  const result = await runCli(args);
+  await restartCore();
+  return {
+    ok: true,
+    result: result.json,
+    dashboard: await buildDashboard()
+  };
+}
+
+async function testUrlFromGui(payload = {}) {
+  const target = String(payload.url || '').trim();
+  if (!/^https?:\/\//i.test(target)) {
+    throw new Error('请输入 http:// 或 https:// 开头的测试地址。');
+  }
+  if (!commandAvailable('curl')) {
+    throw new Error('未找到 curl，无法执行代理连通性测试。');
+  }
+  if (!coreIsRunning()) {
+    await startCore();
+  }
+  const summary = readConfigSummary();
+  const result = await runCapture('curl', [
+    '-L',
+    '-sS',
+    '-o',
+    '/dev/null',
+    '--connect-timeout',
+    '8',
+    '--max-time',
+    '20',
+    '-x',
+    `http://${CONTROL_HOST}:${summary.port}`,
+    '-w',
+    'http_code=%{http_code}\nremote_ip=%{remote_ip}\ntime_total=%{time_total}\n',
+    target
+  ]);
+  const fields = {};
+  result.stdout
+    .trim()
+    .split(/\n+/)
+    .forEach(line => {
+      const [key, ...rest] = line.split('=');
+      if (key) {
+        fields[key] = rest.join('=');
+      }
+    });
+  const status = Number(fields.http_code || 0);
+  return {
+    ok: status >= 200 && status < 400,
+    url: target,
+    httpCode: status,
+    remoteIp: fields.remote_ip || '',
+    timeTotal: fields.time_total || '',
+    proxy: `http://${CONTROL_HOST}:${summary.port}`,
+    stderr: result.stderr.trim()
+  };
+}
+
+function testTcpFromGui(payload = {}) {
+  const host = String(payload.host || '').trim();
+  const port = Number(payload.port || 22);
+  const timeoutMs = Number(payload.timeoutMs || 5000);
+  if (!host || !Number.isInteger(port) || port < 1 || port > 65535) {
+    return Promise.reject(new Error('请输入有效的主机和端口。'));
+  }
+
+  return new Promise(resolve => {
+    const started = Date.now();
+    const socket = new net.Socket();
+    let settled = false;
+    const finish = (ok, error = '') => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      socket.destroy();
+      resolve({
+        ok,
+        host,
+        port,
+        elapsedMs: Date.now() - started,
+        error
+      });
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => finish(true));
+    socket.once('timeout', () => finish(false, 'timeout'));
+    socket.once('error', error => finish(false, error.message || String(error)));
+    socket.connect(port, host);
+  });
+}
+
+async function handleGuiAction(action, payload = {}) {
+  switch (action) {
+    case 'dashboard':
+      return buildDashboard();
+    case 'start-core':
+      await startCore();
+      return buildDashboard();
+    case 'stop-core':
+      stopCore();
+      return buildDashboard();
+    case 'restart-core':
+      await restartCore();
+      return buildDashboard();
+    case 'set-system-proxy':
+      await setSystemProxy(Boolean(payload.enabled));
+      return buildDashboard();
+    case 'set-mode':
+      await setProxyMode(payload.mode);
+      return buildDashboard();
+    case 'switch-proxy':
+      return switchProxyFromGui(payload);
+    case 'check-delays':
+      return checkDelaysFromGui(payload);
+    case 'import-source':
+      return importSourceFromGui(payload.source);
+    case 'import-file':
+      return importFileFromGui();
+    case 'login':
+      return loginFromGui(payload);
+    case 'refresh-user':
+      return refreshUserFromGui(payload);
+    case 'test-url':
+      return testUrlFromGui(payload);
+    case 'test-tcp':
+      return testTcpFromGui(payload);
+    case 'open-config-dir':
+      await shell.openPath(runtime.clashConfigDir);
+      return { ok: true };
+    case 'open-logs-dir':
+      await shell.openPath(runtime.logsDir);
+      return { ok: true };
+    case 'open-control-api':
+      await shell.openExternal(`http://${CONTROL_HOST}:${PUBLIC_CONTROL_PORT}/configs`);
+      return { ok: true };
+    default:
+      throw new Error(`Unsupported GUI action: ${action}`);
+  }
+}
+
 async function routeIpcMessage(message) {
   const name = message.__name;
   const arg = Object.prototype.hasOwnProperty.call(message, 'arg') ? message.arg : message;
@@ -953,6 +1491,8 @@ async function routeIpcMessage(message) {
 }
 
 function installIpcBridge() {
+  ipcMain.handle('PANDA_GUI', (event, action, payload) => handleGuiAction(action, payload || {}));
+
   ipcMain.on('IPC_MESSAGE_QUEUE', (event, message) => {
     const callbackId = message && message.__callbackId;
     routeIpcMessage(message || {})

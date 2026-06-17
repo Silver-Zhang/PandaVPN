@@ -1,1 +1,179 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><link rel="shortcut icon" href="./favicon.ico"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#000000"/><link rel="manifest" href="./manifest.json"/><title>熊猫上网</title><link href="./static/css/2.75de759a.chunk.css" rel="stylesheet"><link href="./static/css/main.95bc9fbd.chunk.css" rel="stylesheet"></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div><script>!function(l){function e(e){for(var r,t,n=e[0],o=e[1],u=e[2],f=0,i=[];f<n.length;f++)t=n[f],p[t]&&i.push(p[t][0]),p[t]=0;for(r in o)Object.prototype.hasOwnProperty.call(o,r)&&(l[r]=o[r]);for(s&&s(e);i.length;)i.shift()();return c.push.apply(c,u||[]),a()}function a(){for(var e,r=0;r<c.length;r++){for(var t=c[r],n=!0,o=1;o<t.length;o++){var u=t[o];0!==p[u]&&(n=!1)}n&&(c.splice(r--,1),e=f(f.s=t[0]))}return e}var t={},p={1:0},c=[];function f(e){if(t[e])return t[e].exports;var r=t[e]={i:e,l:!1,exports:{}};return l[e].call(r.exports,r,r.exports,f),r.l=!0,r.exports}f.m=l,f.c=t,f.d=function(e,r,t){f.o(e,r)||Object.defineProperty(e,r,{enumerable:!0,get:t})},f.r=function(e){"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(e,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(e,"__esModule",{value:!0})},f.t=function(r,e){if(1&e&&(r=f(r)),8&e)return r;if(4&e&&"object"==typeof r&&r&&r.__esModule)return r;var t=Object.create(null);if(f.r(t),Object.defineProperty(t,"default",{enumerable:!0,value:r}),2&e&&"string"!=typeof r)for(var n in r)f.d(t,n,function(e){return r[e]}.bind(null,n));return t},f.n=function(e){var r=e&&e.__esModule?function(){return e.default}:function(){return e};return f.d(r,"a",r),r},f.o=function(e,r){return Object.prototype.hasOwnProperty.call(e,r)},f.p="./";var r=window.webpackJsonp=window.webpackJsonp||[],n=r.push.bind(r);r.push=e,r=r.slice();for(var o=0;o<r.length;o++)e(r[o]);var s=n;a()}([])</script><script src="./static/js/2.1498d330.chunk.js"></script><script src="./static/js/main.de7e2582.chunk.js"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>熊猫上网 Linux</title>
+    <link rel="stylesheet" href="./app.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="sidebar">
+        <header class="brand">
+          <div class="brand-mark">熊</div>
+          <div>
+            <h1>熊猫上网 Linux</h1>
+            <p id="coreState">正在读取状态</p>
+          </div>
+        </header>
+
+        <section class="panel connection-panel" aria-labelledby="connectionTitle">
+          <div class="panel-title-row">
+            <h2 id="connectionTitle">连接</h2>
+            <span id="modeBadge" class="badge">智能代理</span>
+          </div>
+          <div class="primary-actions">
+            <button id="startCore" class="button button-primary" type="button">
+              <span class="icon" aria-hidden="true">▶</span>
+              启动
+            </button>
+            <button id="stopCore" class="button" type="button">
+              <span class="icon" aria-hidden="true">■</span>
+              停止
+            </button>
+          </div>
+          <div class="segmented" role="group" aria-label="代理模式">
+            <button class="mode-button" data-mode="rule" type="button">智能代理</button>
+            <button class="mode-button" data-mode="global" type="button">全局代理</button>
+            <button class="mode-button" data-mode="direct" type="button">直连模式</button>
+          </div>
+          <label class="switch-row">
+            <input id="systemProxy" type="checkbox" />
+            <span>系统代理</span>
+          </label>
+          <dl class="metric-list">
+            <div>
+              <dt>HTTP</dt>
+              <dd id="httpPort">-</dd>
+            </div>
+            <div>
+              <dt>SOCKS</dt>
+              <dd id="socksPort">-</dd>
+            </div>
+            <div>
+              <dt>节点</dt>
+              <dd id="proxyCount">0</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="panel account-panel" aria-labelledby="accountTitle">
+          <div class="panel-title-row">
+            <h2 id="accountTitle">账号</h2>
+            <span id="accountState" class="badge badge-muted">未登录</span>
+          </div>
+          <form id="loginForm" class="stack-form">
+            <input id="apiBase" type="url" placeholder="服务端 URL" autocomplete="url" />
+            <input id="username" type="email" placeholder="账号" autocomplete="username" />
+            <input id="password" type="password" placeholder="密码" autocomplete="current-password" />
+            <div class="button-row">
+              <button class="button button-primary" type="submit">登录并更新</button>
+              <button id="refreshUser" class="button" type="button">刷新</button>
+            </div>
+          </form>
+        </section>
+      </aside>
+
+      <main class="main">
+        <section class="toolbar">
+          <div>
+            <p class="section-kicker">当前节点</p>
+            <h2 id="currentProxy">未选择</h2>
+          </div>
+          <div class="toolbar-actions">
+            <input id="nodeSearch" type="search" placeholder="搜索节点" />
+            <button id="delayAll" class="button" type="button">延迟测试</button>
+            <button id="refreshDashboard" class="icon-button" title="刷新" type="button">↻</button>
+          </div>
+        </section>
+
+        <section class="node-surface" aria-label="节点列表">
+          <div class="node-header">
+            <span>节点</span>
+            <span>协议</span>
+            <span>延迟</span>
+            <span>操作</span>
+          </div>
+          <div id="nodeList" class="node-list"></div>
+        </section>
+
+        <section class="panel log-panel" aria-labelledby="logTitle">
+          <div class="panel-title-row">
+            <h2 id="logTitle">核心日志</h2>
+            <button id="openLogs" class="button button-small" type="button">打开目录</button>
+          </div>
+          <pre id="coreLog" class="log-output">暂无日志</pre>
+        </section>
+      </main>
+
+      <aside class="inspector">
+        <section class="panel" aria-labelledby="subscriptionTitle">
+          <div class="panel-title-row">
+            <h2 id="subscriptionTitle">订阅</h2>
+            <button id="importFile" class="button button-small" type="button">导入文件</button>
+          </div>
+          <form id="importForm" class="stack-form">
+            <textarea id="subscriptionSource" rows="4" placeholder="订阅 URL / sub://..."></textarea>
+            <button class="button button-primary" type="submit">导入订阅</button>
+          </form>
+          <dl class="detail-list">
+            <div>
+              <dt>来源</dt>
+              <dd id="profileSource">-</dd>
+            </div>
+            <div>
+              <dt>数量</dt>
+              <dd id="profileCount">-</dd>
+            </div>
+            <div>
+              <dt>更新</dt>
+              <dd id="profileUpdated">-</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="panel" aria-labelledby="testsTitle">
+          <div class="panel-title-row">
+            <h2 id="testsTitle">连通性测试</h2>
+            <span id="testState" class="badge badge-muted">待测试</span>
+          </div>
+          <div class="test-grid">
+            <button class="button" data-test-url="https://www.google.com" type="button">Google</button>
+            <button class="button" data-test-url="https://api.openai.com/v1/models" type="button">OpenAI</button>
+            <button id="testLan" class="button" type="button">192.168.9.27:22</button>
+          </div>
+          <form id="customTestForm" class="inline-form">
+            <input id="customTestUrl" type="url" placeholder="https://example.com" />
+            <button class="icon-button" title="测试" type="submit">↗</button>
+          </form>
+          <pre id="testOutput" class="result-output">等待测试</pre>
+        </section>
+
+        <section class="panel" aria-labelledby="pathsTitle">
+          <div class="panel-title-row">
+            <h2 id="pathsTitle">路径</h2>
+            <button id="openConfig" class="button button-small" type="button">打开配置</button>
+          </div>
+          <dl class="detail-list">
+            <div>
+              <dt>数据目录</dt>
+              <dd id="dataDir">-</dd>
+            </div>
+            <div>
+              <dt>配置文件</dt>
+              <dd id="configFile">-</dd>
+            </div>
+            <div>
+              <dt>控制 API</dt>
+              <dd id="controlApi">-</dd>
+            </div>
+          </dl>
+        </section>
+      </aside>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>

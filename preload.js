@@ -63,6 +63,11 @@ function installInputContextMenu() {
 
 window.electronIPC = ipcRenderer;
 window.electronRemote = remote;
+window.panda = {
+  invoke(action, payload = {}) {
+    return ipcRenderer.invoke('PANDA_GUI', action, payload);
+  }
+};
 
 seedLocalMode();
 installInputContextMenu();

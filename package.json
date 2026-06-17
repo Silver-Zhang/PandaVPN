@@ -13,7 +13,7 @@
     "verify:full": "node scripts/verify.js --require-subscription",
     "verify:real": "node scripts/verify.js --require-subscription --real-url subscription.url",
     "start": "electron .",
-    "check": "node --check cli.js && node --check main.js && node --check preload.js && node --check scripts/verify.js",
+    "check": "node --check cli.js && node --check main.js && node --check preload.js && node --check renderer/app.js && node --check scripts/verify.js",
     "pack": "electron-builder --linux AppImage deb"
   },
   "devDependencies": {

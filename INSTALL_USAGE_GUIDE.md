@@ -2,7 +2,7 @@
 
 更新时间：2026-06-17
 
-本文档面向 `/home/workspace/codex_workspace/xiongmaosw` 这份 Linux 基础版客户端。它可以在没有图形界面的服务器上运行，也可以在 Linux 桌面环境中启动 Electron 图形界面。当前更推荐先使用 CLI，因为 CLI 已经覆盖账号登录、订阅刷新、mihomo 核心启动和代理连通性验证。
+本文档面向 `/home/workspace/codex_workspace/xiongmaosw` 这份 Linux 客户端。它可以在没有图形界面的服务器上运行 CLI，也可以在 Linux 桌面环境中启动 Electron 图形界面。CLI 和图形界面共用同一份用户数据目录，账号登录、订阅刷新、模式切换、节点切换和连通性测试都可以在图形界面中完成。
 
 ## 1. 当前主机状态
 
@@ -16,7 +16,7 @@ cd /home/workspace/codex_workspace/xiongmaosw
 
 - Node.js 环境。
 - 工程内 mihomo 核心：`resources/clash-binaries/mihomo-linux-amd64`。
-- 可选订阅文件：`subscription.url`（需要用户自行放置，不随仓库发布）。
+- 一个真实订阅文件；公开仓库中以 `subscription.url` 占位，不随仓库发布。
 - CLI 命令：`doctor`、`status`、`import`、`login`、`refresh-user`、`serve`。
 
 本轮没有使用 `sudo`，也没有修改系统级配置。
@@ -358,12 +358,21 @@ curl -L -sS -o /dev/null \
 npm start
 ```
 
-当前图形界面仍属于基础版，主要功能闭环建议先以 CLI 为准：
+图形界面会打开“熊猫上网 Linux”控制台，主要区域如下：
 
-- 导入订阅。
-- 登录账号刷新订阅。
-- 启动 mihomo 核心。
-- 通过 HTTP/SOCKS 代理访问网络。
+- 左侧“连接”：启动/停止 mihomo，切换智能代理、全局代理、直连模式，启用/关闭 GNOME 系统代理。
+- 左侧“账号”：输入服务端 URL、账号和密码后点击“登录并更新”；密码只在本次登录时传给 CLI，不写入配置文件。
+- 中间“节点”：查看当前 `Proxy` 策略组节点，搜索、切换节点，并点击“延迟测试”批量检测节点延迟。
+- 右侧“订阅”：导入 Clash YAML、`.url`、`sub://...` 或 HTTP/HTTPS 订阅地址，也可以点击“导入文件”选择本地文件。
+- 右侧“连通性测试”：通过 `127.0.0.1:4780` HTTP 代理测试 Google、OpenAI API 或自定义 URL；`192.168.9.27:22` 会测试内网 SSH 端口直连可达性。
+
+图形界面中的三种模式和 CLI 完全对应：
+
+- 智能代理：等价于 `node cli.js mode rule`。境内 GEOIP/CN 规则直连，其余命中 `Proxy` 策略组。
+- 全局代理：等价于 `node cli.js mode global`。所有进入 HTTP/SOCKS 代理端口的流量走代理策略。
+- 直连模式：等价于 `node cli.js mode direct`。所有进入 HTTP/SOCKS 代理端口的流量直连。
+
+注意：图形界面当前仍不启用 TUN，所以 `ping`、未设置代理的普通 `ssh` 和其他系统流量不会自动进入代理。需要让应用使用 `127.0.0.1:4780` 或 `127.0.0.1:4781`，或在 GNOME 中启用系统代理。
 
 ## 12. 常见问题
 

@@ -122,18 +122,29 @@ node cli.js mode direct
    npm start
    ```
 
+图形界面已接入常用操作：
+
+- 启动/停止 mihomo 核心。
+- 切换“智能代理 / 全局代理 / 直连模式”。
+- 启用或关闭 GNOME 系统代理。
+- 登录账号并刷新账号订阅，密码只在本次登录时传给 CLI，不写入配置。
+- 导入 Clash YAML、`.url`、`sub://...` 或 HTTP/HTTPS 订阅地址。
+- 查看和切换 `Proxy` 策略组节点，并批量测试节点延迟。
+- 通过本地 HTTP 代理测试 Google、OpenAI API 或自定义 URL；也可以直接测试 `192.168.9.27:22` 这类内网端口。
+
 ## 使用方式
 
 - CLI `import` 可以导入 `.yaml` / `.yml` 配置、`.url` 订阅文件、`sub://...` 字符串或 HTTP/HTTPS 订阅地址；订阅响应支持 Clash YAML、base64 Clash YAML，以及 Shadowrocket 常见的 base64 SSR/VMess URI-list。
 - CLI `login` / `refresh-user` 可以复用 macOS 客户端的账号登录和 `pc_sub` 刷新链路；真实使用时需要提供账号、密码和服务端 base URL，或让 CLI 从本地 `/rocket` 发现。
 - CLI `mode rule|global|direct` 可以切换智能代理、全局代理和直连模式。
+- Electron 图形界面的账号、订阅、节点、模式和连通性测试会复用同一份用户数据目录。
 - 菜单 `文件 -> 导入 Clash 配置文件...` 可以导入 `.yaml` / `.yml` 配置。
 - 菜单 `文件 -> 打开配置目录` 会打开当前数据目录，默认配置位于 `clash-configs/config.yaml`。
-- 点击主界面的“启动连接”会在 GNOME 桌面环境下通过 `gsettings` 设置系统 HTTP/HTTPS/SOCKS 代理。
+- 点击图形界面的“系统代理”会在 GNOME 桌面环境下通过 `gsettings` 设置系统 HTTP/HTTPS/SOCKS 代理。
 - Clash 控制 API 对前端保持 `127.0.0.1:4788`，实际核心控制端口被改写到 `127.0.0.1:4790`。
 
 ## 当前边界
 
-- 账号登录/刷新已实现基础 CLI 链路，但图形界面仍未接入登录表单；真实服务端 base URL 需要通过 `--base`、`XIONGMAO_API_BASE` 或本地 `/rocket` 发现。
+- 图形界面已经接入账号登录/刷新；如果本地 `/rocket` 不能发现服务端入口，需要在界面里填写服务端 URL，或继续用 CLI 的 `--base` / `XIONGMAO_API_BASE`。
 - 自动系统代理目前实现了 GNOME/gsettings。KDE、XFCE 等环境可以手动设置代理到 `127.0.0.1:4780` 和 SOCKS `127.0.0.1:4781`。
 - 仓库不内置 Linux Clash/mihomo 二进制；可以运行 `./scripts/install-core.sh` 下载到工程内，也可以使用系统已安装版本或 `CLASH_CORE=/absolute/path/to/mihomo`。
