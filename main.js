@@ -2172,21 +2172,33 @@ function createMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    if (app.isReady()) {
+      createWindow();
+    }
+    return;
+  }
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+  mainWindow.show();
+  mainWindow.focus();
+}
+
 function createTray() {
   if (!fs.existsSync(runtime.iconFile)) {
     return;
   }
   tray = new Tray(runtime.iconFile);
   tray.setToolTip(APP_NAME);
+  tray.on('click', showMainWindow);
+  tray.on('double-click', showMainWindow);
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
         label: '显示主界面',
-        click: () => {
-          if (mainWindow) {
-            mainWindow.show();
-          }
-        }
+        click: showMainWindow
       },
       {
         label: '打开配置目录',
@@ -2246,14 +2258,17 @@ async function bootstrap() {
   createTray();
 }
 
-app.whenReady().then(bootstrap);
+const singleInstanceLock = app.requestSingleInstanceLock();
+
+if (!singleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', showMainWindow);
+  app.whenReady().then(bootstrap);
+}
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  } else if (mainWindow) {
-    mainWindow.show();
-  }
+  showMainWindow();
 });
 
 app.on('before-quit', event => {

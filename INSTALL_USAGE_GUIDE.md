@@ -9,8 +9,8 @@ SilverVPN 是一个 Linux 桌面代理客户端。它使用 `mihomo`/Clash-compa
 第一步是拉取仓库：
 
 ```bash
-git clone https://github.com/Silver-Zhang/PandaVPN.git
-cd PandaVPN
+git clone https://github.com/Silver-Zhang/SilverVPN.git
+cd SilverVPN
 ```
 
 第二步执行一键安装：
@@ -26,10 +26,11 @@ cd PandaVPN
 - 创建启动命令 `~/.local/bin/silvervpn`
 - 创建 `silvervpn-run`、`silvervpn-code`、`silvervpn-claude`
 - 创建应用菜单入口 `~/.local/share/applications/silvervpn.desktop`
-- 创建应用菜单入口 `VS Code (SilverVPN)`
 - 如果桌面目录存在，创建 `SilverVPN.desktop`
 
 脚本不使用 `sudo`，只写当前用户目录和当前项目目录。
+
+应用菜单只保留 `SilverVPN` 主程序。`silvervpn-code` 等代理启动器仅作为终端命令存在，避免被误认为 SilverVPN 图形界面。
 
 启动方式：
 
@@ -64,7 +65,7 @@ MIHOMO_DOWNLOAD_URL=https://.../mihomo-linux-amd64-compatible-v1.19.27.gz ./scri
 推荐直接运行：
 
 ```bash
-cd PandaVPN
+cd SilverVPN
 ./scripts/update.sh
 ```
 
@@ -268,6 +269,19 @@ silvervpn-run curl -I https://api.anthropic.com
 - ExpressVPN、iNode、OpenVPN、WireGuard、mihomo 等相关进程
 
 当 SilverVPN 出口已是境外，但“直连出口”仍是中国，这是当前 HTTP 代理模式的正常现象。只有实际使用系统代理或代理环境变量的应用才会显示 SilverVPN 出口。如果 ExpressVPN/iNode 改写默认路由，直连出口和隧道网卡也会反映出来。
+
+### ExpressVPN 兼容原则
+
+SilverVPN 不创建第二张 TUN 网卡，也不修改系统默认路由、ExpressVPN 策略路由、DNS 或 kill switch。原因是两个整机 VPN 同时接管路由时，无法保证 ExpressVPN 完全不受影响。
+
+因此，当“不能影响 ExpressVPN”是前提时：
+
+- ExpressVPN 继续作为系统级 VPN。
+- SilverVPN 只处理进入本地 HTTP/SOCKS 或 GNOME 系统代理的流量。
+- 这些流量仍会按智能规则自动区分境内直连和境外节点。
+- SilverVPN 不承诺接管所有不支持系统代理的后台程序、终端命令、ICMP 或自定义网络协议。
+
+整机自动分流和“ExpressVPN 完全不受影响”不能同时作为强保证。SilverVPN 默认选择后者。
 
 ## 11. 语言和程序名
 

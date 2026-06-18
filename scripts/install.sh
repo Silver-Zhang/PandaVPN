@@ -12,7 +12,6 @@ RUN_WRAPPER="$BIN_DIR/silvervpn-run"
 CODE_WRAPPER="$BIN_DIR/silvervpn-code"
 CLAUDE_WRAPPER="$BIN_DIR/silvervpn-claude"
 DESKTOP_FILE="$APP_DIR/$APP_ID.desktop"
-CODE_DESKTOP_FILE="$APP_DIR/silvervpn-code.desktop"
 ICON_FILE="$ICON_DIR/$APP_ID.png"
 DESKTOP_DIR=""
 
@@ -51,7 +50,7 @@ cat > "$WRAPPER" <<EOF
 set -euo pipefail
 APP_DIR="$ROOT_DIR"
 cd "\$APP_DIR"
-exec "\$APP_DIR/node_modules/.bin/electron" --no-sandbox "\$APP_DIR" "\$@"
+exec "\$APP_DIR/node_modules/.bin/electron" --no-sandbox "\$APP_DIR"
 EOF
 chmod +x "$WRAPPER"
 
@@ -98,29 +97,17 @@ Type=Application
 Name=$APP_NAME
 Comment=SilverVPN Linux proxy client
 Exec=$WRAPPER
+Path=$ROOT_DIR
 Icon=$ICON_FILE
 Terminal=false
 Categories=Network;
 StartupNotify=true
+StartupWMClass=SilverVPN
 X-GNOME-UsesNotifications=true
 EOF
 chmod 0644 "$DESKTOP_FILE"
 
-cat > "$CODE_DESKTOP_FILE" <<EOF
-[Desktop Entry]
-Type=Application
-Name=VS Code (SilverVPN)
-Comment=Launch VS Code with SilverVPN HTTP proxy environment
-Exec=$CODE_WRAPPER %F
-Icon=visual-studio-code
-Terminal=false
-Categories=Development;IDE;
-StartupNotify=true
-MimeType=text/plain;inode/directory;
-EOF
-chmod 0644 "$CODE_DESKTOP_FILE"
-
-rm -f "$APP_DIR/xiongmao-vpn-linux.desktop"
+rm -f "$APP_DIR/xiongmao-vpn-linux.desktop" "$APP_DIR/silvervpn-code.desktop"
 
 if [[ -d "$DESKTOP_DIR" ]]; then
   cp "$DESKTOP_FILE" "$DESKTOP_DIR/$APP_NAME.desktop"

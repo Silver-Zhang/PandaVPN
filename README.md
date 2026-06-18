@@ -7,8 +7,8 @@ SilverVPN is a Linux desktop proxy client built around a Linux `mihomo`/Clash-co
 On a new Linux desktop host:
 
 ```bash
-git clone https://github.com/Silver-Zhang/PandaVPN.git
-cd PandaVPN
+git clone https://github.com/Silver-Zhang/SilverVPN.git
+cd SilverVPN
 ./scripts/install.sh
 ```
 
@@ -19,8 +19,9 @@ The installer is user-local and does not use `sudo`. It will:
 - create the launcher `~/.local/bin/silvervpn`
 - create `silvervpn-run`, `silvervpn-code`, and `silvervpn-claude` proxy-aware launchers
 - create the application-menu entry `~/.local/share/applications/silvervpn.desktop`
-- create the application-menu entry `VS Code (SilverVPN)`
 - copy the desktop icon as `SilverVPN.desktop` when a desktop folder exists
+
+Only `SilverVPN` is added to the application menu. The proxy-aware command wrappers remain terminal commands, so they cannot be confused with the SilverVPN desktop window.
 
 Start it from the app menu by searching `SilverVPN`, or run:
 
@@ -39,7 +40,7 @@ HTTPS_PROXY=http://127.0.0.1:4780 ./scripts/install.sh
 From an existing clone:
 
 ```bash
-cd PandaVPN
+cd SilverVPN
 ./scripts/update.sh
 ```
 
@@ -122,6 +123,12 @@ Claude/Anthropic domains are forced through the `Proxy` group in smart mode. Onl
 ## Network Status
 
 The GUI network panel compares the machine's direct public IP with the SilverVPN proxy IP and shows GNOME system proxy ownership, default routes, tunnel interfaces, listening local ports, and other detected VPN processes. This makes route conflicts from ExpressVPN, iNode, OpenVPN, or similar software visible.
+
+## ExpressVPN Compatibility
+
+SilverVPN does not install a TUN interface or change the system routing table. This is intentional: when ExpressVPN is active, a second system-wide TUN client cannot guarantee that it will leave ExpressVPN's routes, DNS, kill switch, and tunnel behavior unchanged.
+
+In this compatibility model, ExpressVPN remains the system VPN. SilverVPN only handles applications that use its local HTTP/SOCKS or GNOME system-proxy entry. Smart rules still classify that traffic as China/private direct and foreign proxy. Whole-machine automatic classification is not enabled while preserving the guarantee that ExpressVPN is unaffected.
 
 ## Useful CLI
 
