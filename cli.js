@@ -102,7 +102,7 @@ function copyDirectory(source, target, overwrite = false) {
     const to = path.join(target, entry.name);
     if (entry.isDirectory()) {
       copyDirectory(from, to, overwrite);
-    } else if (overwrite || !fs.existsSync(to)) {
+    } else if (entry.isFile() && (overwrite || !fs.existsSync(to))) {
       fs.copyFileSync(from, to);
     }
   }
@@ -225,7 +225,10 @@ function migrateLegacyData(paths) {
 
   for (const source of candidates) {
     if (fs.existsSync(path.join(source, 'clash-configs', 'config.yaml'))) {
-      copyDirectory(source, paths.dataDir, true);
+      for (const entry of ['clash-configs', 'clashy-configs', 'subscriptions']) {
+        copyDirectory(path.join(source, entry), path.join(paths.dataDir, entry), true);
+      }
+      copyIfMissing(path.join(source, 'settings.json'), paths.settingsFile);
       return;
     }
   }
