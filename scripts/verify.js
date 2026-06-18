@@ -499,7 +499,10 @@ function startSubscriptionServer(configText, options = {}) {
   const pathname = options.pathname || '/subscription.yaml';
   const hits = [];
   const server = http.createServer((request, response) => {
-    hits.push(request.url);
+    hits.push({
+      url: request.url,
+      userAgent: request.headers['user-agent'] || ''
+    });
     response.writeHead(200, { 'Content-Type': contentType });
     response.end(body);
   });
@@ -704,6 +707,10 @@ async function verifySubscriptionImport(fixtureDir) {
     }
 
     assertOk(subscription.hits.length > 0, 'subscription import succeeded without requesting the local subscription server');
+    assertOk(
+      subscription.hits.some(hit => /ClashMeta/i.test(hit.userAgent)),
+      'subscription request did not identify SilverVPN as a ClashMeta-compatible client'
+    );
     const statusResult = await runCli(['status', '--data-dir', dataDir], { heading: 'status after subscription import failed' });
     const status = parseJsonResult(statusResult, 'status after subscription import');
     assertOk(status.configExists === true, 'subscription import did not create an active config');
