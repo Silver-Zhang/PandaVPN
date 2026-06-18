@@ -318,8 +318,8 @@ function requestJson(port, pathname) {
   });
 }
 
-function startServe(dataDir, port) {
-  const args = ['serve', '--demo', '--port', String(port), '--data-dir', dataDir];
+function startServe(dataDir, port, corePort) {
+  const args = ['serve', '--demo', '--port', String(port), '--core-port', String(corePort), '--data-dir', dataDir];
   const child = spawn(process.execPath, ['cli.js', ...args], {
     cwd: root,
     stdio: ['ignore', 'pipe', 'pipe']
@@ -464,7 +464,11 @@ async function verifyModeCommand(dataDir) {
 
 async function verifyDemoServe(dataDir, expected) {
   const port = await getOpenPort();
-  const proc = startServe(dataDir, port);
+  let corePort = await getOpenPort();
+  while (corePort === port) {
+    corePort = await getOpenPort();
+  }
+  const proc = startServe(dataDir, port, corePort);
   try {
     const health = await waitForServer(port, proc);
     const configs = await requestJson(port, '/configs');
