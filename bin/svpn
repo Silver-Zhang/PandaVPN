@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+JS="$APP_ROOT/bin/svpn.js"
+
+cmd="${1:-help}"
+
+run_node() {
+  node "$JS" "$@"
+}
+
+extract_http_port() {
+  node -e '
+let raw = "";
+process.stdin.on("data", chunk => { raw += chunk; });
+process.stdin.on("end", () => {
+  try {
+    const data = JSON.parse(raw);
+    if (data && data.ports && data.ports.http) {
+      console.log(data.ports.http);
+      return;
+    }
+  } catch (_error) {}
+  process.exit(1);
+});
+'
+}
+
+format_http_state() {
+  local code="$1"
+  if [[ "$code" =~ ^[23][0-9][0-9]$ ]]; then
+    printf '可达 (HTTP %s)' "$code"
+  elif [[ "$code" == "401" ]]; then
+    printf '可达，需要认证 (HTTP 401)'
+  elif [[ "$code" == "403" ]]; then
+    printf '可达，但当前节点/服务拒绝访问 (HTTP 403)'
+  elif [[ "$code" =~ ^[45][0-9][0-9]$ ]]; then
+    printf '服务可达 (HTTP %s)' "$code"
+  else
+    printf '失败'
+  fi
+}
+
+test_url() {
+  local label="$1"
+  local url="$2"
+  local http_port="$3"
+  local code
+  code=$(
+    HTTP_PROXY="http://127.0.0.1:${http_port}" \
+    HTTPS_PROXY="http://127.0.0.1:${http_port}" \
+    ALL_PROXY="http://127.0.0.1:${http_port}" \
+    http_proxy="http://127.0.0.1:${http_port}" \
+    https_proxy="http://127.0.0.1:${http_port}" \
+    all_proxy="http://127.0.0.1:${http_port}" \
+    curl -sS -L -o /dev/null -w '%{http_code}' --max-time 25 "$url" 2>/dev/null || true
+  )
+  printf '%s：%s\n' "$label" "$(format_http_state "$code")"
+}
+
+case "$cmd" in
+  on)
+    shift || true
+    run_node start --proxy "$@"
+    run_node vscode on "$@"
+    echo 'SilverVPN 一键开启完成。'
+    ;;
+  off)
+    shift || true
+    run_node vscode off "$@" || true
+    run_node proxy off "$@" || true
+    run_node stop "$@" || true
+    echo 'SilverVPN 一键关闭完成。'
+    ;;
+  test)
+    shift || true
+    run_node test "$@"
+    status_json=$(run_node status --json "$@" 2>/dev/null || true)
+    http_port=$(printf '%s' "$status_json" | extract_http_port 2>/dev/null || true)
+    if [ -n "${http_port:-}" ]; then
+      test_url 'Claude' 'https://claude.ai' "$http_port"
+      test_url 'Anthropic API' 'https://api.anthropic.com' "$http_port"
+    else
+      echo 'Claude：未测试（无法读取当前 HTTP 端口）'
+      echo 'Anthropic API：未测试（无法读取当前 HTTP 端口）'
+    fi
+    ;;
+  help|--help|-h)
+    run_node help
+    echo
+    echo 'Extended wrapper:'
+    echo '  svpn on   Start backend, terminal proxy and VS Code Stable/Insiders proxy without the old intermediate warning.'
+    echo '  svpn test Includes Claude and Anthropic API checks in addition to the core tests.'
+    ;;
+  *)
+    exec node "$JS" "$@"
+    ;;
+esac
