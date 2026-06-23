@@ -1,7 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+# Resolve this wrapper's real path even when ~/.local/bin/svpn is a symlink.
+# Without this, dirname "$0" points to ~/.local/bin and node tries to load
+# ~/.local/bin/svpn.js instead of the repository's bin/svpn.js.
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR=$(cd -P "$(dirname "$SOURCE")" && pwd)
+  TARGET=$(readlink "$SOURCE")
+  if [[ "$TARGET" == /* ]]; then
+    SOURCE="$TARGET"
+  else
+    SOURCE="$DIR/$TARGET"
+  fi
+done
+APP_ROOT=$(cd "$(dirname "$SOURCE")/.." && pwd)
 JS="$APP_ROOT/bin/svpn.js"
 
 cmd="${1:-help}"
